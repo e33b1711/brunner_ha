@@ -1,0 +1,24 @@
+# Installation:
+#   sudo cp brunner-reader.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now brunner-reader
+# User und ggf. die Pfade vorher anpassen.
+
+[Unit]
+Description=Brunner BHZ -> MQTT (liest die Anzeige per VNC)
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+User=ak
+WorkingDirectory=/opt/brunner/reader
+Environment=BHZ_HOST=192.168.178.20
+Environment=MQTT_HOST=localhost
+Environment=INTERVAL=30
+Environment=AUTO_HOME_AFTER=300
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/brunner/.venv/bin/python /opt/brunner/reader/bhz2mqtt.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

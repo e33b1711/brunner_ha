@@ -1,0 +1,21 @@
+# Installation:
+#   sudo cp brunner-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now brunner-web
+# User und ggf. die Pfade vorher anpassen.
+
+[Unit]
+Description=Brunner BHZ Web (noVNC)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ak
+WorkingDirectory=/opt/brunner
+Environment=LISTEN=0.0.0.0:6080
+Environment=BHZ_HOST=192.168.178.20
+ExecStart=/opt/brunner/web/run-web.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
