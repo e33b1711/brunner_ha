@@ -18,7 +18,6 @@ FIELDS = {
     "puffer_oben": (250, 240, 330, 266),
     "puffer_mitte": (250, 290, 330, 316),
     "puffer_unten": (250, 340, 330, 366),
-    "warmwasser": (460, 300, 555, 326),
 }
 
 # Unveraenderliche Bereiche, an denen die Home-Seite erkannt wird. Ein Dialog
@@ -98,6 +97,5 @@ def read_home(img):
         # Das Kachelofen-Feld zeigt im Betrieb die Leistung, sonst die Kesseltemperatur.
         "kachelofen_temperatur": _number(raw["kachelofen"], "°C"),
         "kachelofen_leistung": _number(raw["kachelofen"], "kW"),
-        "warmwasser": {"Ein": True, "Aus": False}.get(raw["warmwasser"]),
     }
     return values, raw, readings

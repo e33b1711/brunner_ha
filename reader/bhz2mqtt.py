@@ -51,7 +51,6 @@ ENTITIES = {
     "gastherme": ("Gastherme", "sensor", "°C", "temperature"),
     "kachelofen_temperatur": ("Kachelofen Temperatur", "sensor", "°C", "temperature"),
     "kachelofen_leistung": ("Kachelofen Leistung", "sensor", "kW", "power"),
-    "warmwasser": ("Warmwasser", "binary_sensor", None, "running"),
 }
 
 log = logging.getLogger("bhz2mqtt")

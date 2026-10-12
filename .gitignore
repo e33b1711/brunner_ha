@@ -1,2 +1,5 @@
 *.png
+!reader/glyphs/*.png
+!reader/ref/*.png
 .venv
+__pycache__/
