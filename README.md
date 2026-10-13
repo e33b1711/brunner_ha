@@ -166,13 +166,17 @@ Die BHZ stellt ihre Anzeige per VNC bereit (Port 5900, 640×480).
 `web/run-web.sh` macht daraus mit noVNC eine Webseite, die sich auch bedienen
 lässt.
 
+noVNC liegt als Git-Submodul in `novnc/`; nach einem normalen `git clone` ist
+der Ordner leer und wird mit dem ersten Befehl gefüllt.
+
 ```bash
 git submodule update --init
 python3 -m venv .venv && .venv/bin/pip install websockify
 BHZ_HOST=<Adresse der BHZ> LISTEN=0.0.0.0:6080 web/run-web.sh
 ```
 
-Dann `http://<rechner>:6080/vnc.html` öffnen. Als Dienst: `web/brunner-web.service`.
+Dann `http://<rechner>:6080/` öffnen: Die Startseite (`web/index.html`) bietet
+„Nur ansehen" und „Bedienen". Als Dienst: `web/brunner-web.service`.
 Die Seite ist ungeschützt – nur im eigenen Netz freigeben.
 
 ## Anzeige auslesen (`reader/`)
@@ -214,3 +218,8 @@ vergleichen, was die Anzeige zeigt.
 - **Senden auf den Bus:** Eine falsch gebaute Nachricht kann eine andere
   Einstellung der Heizung verändern. Neue Befehle immer erst am Bedienteil
   mitschneiden und nicht raten.
+
+## Lizenz
+
+MIT, siehe `LICENSE`. noVNC (Submodul) steht unter seiner eigenen Lizenz
+(MPL 2.0, siehe `novnc/LICENSE.txt`).

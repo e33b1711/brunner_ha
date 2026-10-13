@@ -14,6 +14,9 @@ if [ ! -x .venv/bin/websockify ] || [ ! -d novnc ]; then
     exit 1
 fi
 
+# Eigene Startseite (nur ansehen / bedienen) in das noVNC-Verzeichnis legen
+[ -f web/index.html ] && cp web/index.html novnc/index.html
+
 BHZ_HOST="${BHZ_HOST:-192.168.178.20}"
 BHZ_PORT="${BHZ_PORT:-5900}"
 LISTEN="${LISTEN:-127.0.0.1:6080}"
