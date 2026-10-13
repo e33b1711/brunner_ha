@@ -1,0 +1,20 @@
+# Installation:
+#   sudo cp can0.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now can0
+# Faehrt die Schnittstelle hoch, sobald der Adapter da ist (auch nach
+# Umstecken). Ohne listen-only, weil can2mqtt.py fuer die Schalter senden muss.
+
+[Unit]
+Description=CAN-Schnittstelle can0 fuer die Brunner BHZ (125 kbit/s)
+BindsTo=sys-subsystem-net-devices-can0.device
+After=sys-subsystem-net-devices-can0.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/sbin/ip link set can0 down
+ExecStart=/sbin/ip link set can0 up type can bitrate 125000 listen-only off
+ExecStop=/sbin/ip link set can0 down
+
+[Install]
+WantedBy=sys-subsystem-net-devices-can0.device

@@ -3,3 +3,4 @@
 !reader/ref/*.png
 .venv
 __pycache__/
+harvest/

@@ -1,0 +1,22 @@
+# Installation:
+#   sudo cp brunner-can.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now brunner-can
+# User und ggf. die Pfade vorher anpassen.
+
+[Unit]
+Description=Brunner BHZ -> MQTT (hoert den CAN-Bus mit)
+After=network-online.target can0.service
+Wants=network-online.target can0.service
+
+[Service]
+User=ak
+WorkingDirectory=/opt/brunner/can
+Environment=CAN_IF=can0
+Environment=MQTT_HOST=192.168.178.73
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/brunner/.venv/bin/python /opt/brunner/can/can2mqtt.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
