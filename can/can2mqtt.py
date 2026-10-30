@@ -10,6 +10,11 @@ PINs und nicht angeschlossenen Fuehlern. In Home Assistant entstehen zwei
 Geraete, eines fuer die BHZ und eines fuer die EOS. Ein Stern am Namen heisst:
 Zuordnung oder Bedeutung ist noch nicht an der Anzeige geprueft (VALIDATED).
 
+Dazu meldet er jede Minute Zustand und Fehlerzaehler der CAN-Schnittstelle
+(Geraet "Brunner CAN-Adapter"). Der Adapter sendet ACKs und Fehlerrahmen mit;
+steigen die Fehler, stimmt am Bus etwas nicht (Abschluss, Verkabelung) - und
+der Adapter kann den Bus dann selbst stoeren.
+
 Einstellungen ueber Umgebungsvariablen:
     CAN_IF                      CAN-Schnittstelle (Standard can0)
     MQTT_HOST, MQTT_PORT        Broker
@@ -26,6 +31,7 @@ import os
 import re
 import socket
 import struct
+import subprocess
 import sys
 import time
 from collections import Counter, namedtuple
@@ -50,6 +56,22 @@ DEVICES = {
     3: ("eos", {"identifiers": ["brunner_eos_can"], "name": "Brunner EOS CAN",
                 "manufacturer": "Brunner", "model": "EOS"}),
 }
+
+# Zustand und Fehlerzaehler der Schnittstelle (aus "ip -details -statistics");
+# die Zaehler beginnen bei 0, wenn der Adapter neu angesteckt wird
+ADAPTER = {"identifiers": ["brunner_can_adapter"], "name": "Brunner CAN-Adapter",
+           "manufacturer": "CANable", "model": "gs_usb"}
+ADAPTER_TOPIC = f"{BASE}/adapter/state"
+ADAPTER_VALUES = {  # Schluessel -> (Name, Icon); "zustand" ist Text, der Rest Zaehler
+    "zustand": ("Zustand", "mdi:lan-check"),
+    "fehler_passiv": ("Fehlerzustand passiv", "mdi:alert-circle-outline"),
+    "fehler_warnung": ("Fehlerwarnung", "mdi:alert-outline"),
+    "bus_off": ("Bus aus", "mdi:lan-disconnect"),
+    "busfehler": ("Busfehler", "mdi:alert-decagram-outline"),
+    "empfangsfehler": ("Empfangsfehler", "mdi:download-off-outline"),
+    "verworfen": ("Verworfene Rahmen", "mdi:delete-outline"),
+}
+ADAPTER_INTERVAL = 60
 
 LISTEN_FIRST = 10    # Sekunden mithoeren vor der ersten Meldung
 STALE_AFTER = 120    # Sekunden; die meisten Werte kommen alle paar Sekunden,
@@ -339,6 +361,42 @@ def switch_discovery_messages(entities):
         yield f"homeassistant/number/brunner_bhz_can/{key}/config", json.dumps(config)
 
 
+def adapter_discovery_messages():
+    for key, (name, icon) in ADAPTER_VALUES.items():
+        config = {
+            "name": name,
+            "unique_id": f"brunner_can_adapter_{key}",
+            "state_topic": ADAPTER_TOPIC,
+            "availability_topic": AVAIL_TOPIC,
+            "device": ADAPTER,
+            "icon": icon,
+            "entity_category": "diagnostic",
+            "value_template": f"{{{{ value_json.{key} }}}}",
+            "expire_after": ADAPTER_INTERVAL * 3,
+        }
+        if key != "zustand":
+            config["state_class"] = "total_increasing"
+        yield f"homeassistant/sensor/brunner_can_adapter/{key}/config", json.dumps(config)
+
+
+def adapter_state():
+    """-> Zustand und Fehlerzaehler der CAN-Schnittstelle oder None"""
+    try:
+        out = subprocess.run(["ip", "-details", "-statistics", "-json", "link", "show", CAN_IF],
+                             capture_output=True, text=True, timeout=5, check=True).stdout
+        link = json.loads(out)[0]
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        return None
+    info, rx = link.get("linkinfo", {}), link.get("stats64", {}).get("rx", {})
+    stats = info.get("info_xstats", {})
+    return {
+        "zustand": info.get("info_data", {}).get("state", "unbekannt"),
+        "fehler_passiv": stats.get("error_passive"), "fehler_warnung": stats.get("error_warning"),
+        "bus_off": stats.get("bus_off"), "busfehler": stats.get("bus_error"),
+        "empfangsfehler": rx.get("errors"), "verworfen": rx.get("dropped"),
+    }
+
+
 def number_value(number, text):
     """Eingabe aus Home Assistant -> Rohwert (Zehntel) oder None, wenn unzulaessig."""
     try:
@@ -463,6 +521,8 @@ def main():
             client.publish(topic, payload, retain=True)
         for topic, payload in switch_discovery_messages(entities):
             client.publish(topic, payload, retain=True)
+        for topic, payload in adapter_discovery_messages():
+            client.publish(topic, payload, retain=True)
         client.subscribe(COMMAND_TOPIC + "+")
         client.publish(AVAIL_TOPIC, "online", retain=True)
 
@@ -499,8 +559,15 @@ def main():
     sent = {node: None for node in DEVICES}
     sent_at = {node: 0.0 for node in DEVICES}
     last_frame, silent = time.monotonic(), False
+    adapter_at = 0.0
     while True:
         now = time.monotonic()
+        # auch (gerade) dann, wenn der Bus schweigt
+        if now - adapter_at >= ADAPTER_INTERVAL:
+            state = adapter_state()
+            if state:
+                client.publish(ADAPTER_TOPIC, json.dumps(state))
+            adapter_at = now
         if bus.read():
             last_frame = now
             if silent:

@@ -33,7 +33,13 @@ dort muss nur die MQTT-Integration eingerichtet sein.
 - einen MQTT-Broker (z. B. mosquitto) und Home Assistant mit MQTT-Integration
 
 Der Bus läuft mit **125 kbit/s**. Hängt der Adapter nur mitten am Bus mit
-dran, bleibt sein Abschlusswiderstand aus.
+dran, bleibt sein Abschlusswiderstand aus. Wichtig: an **beiden** Enden des
+Busses 120 Ω (stromlos gemessen 60 Ω zwischen CAN-H und CAN-L). Die Anlage
+läuft zwar auch mit nur einem Abschluss, der Adapter ist dafür aber
+empfindlicher – und weil er ohne `listen-only` Fehlerrahmen sendet, kann er den
+Bus dann für alle stören (hier: Bedienteil fand keine Geräte mehr).
+`can2mqtt.py` meldet Zustand und Fehlerzähler des Adapters an Home Assistant
+(Gerät „Brunner CAN-Adapter“).
 
 ### Erst einmal nur mithören
 
