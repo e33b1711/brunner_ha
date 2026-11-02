@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Hoert den CAN-Bus der Brunner BHZ mit und meldet die Werte per MQTT
 (Home Assistant MQTT Discovery). BHZ und EOS schicken alle Werte von selbst.
-Gesendet wird ausschliesslich fuer SWITCHES, SELECTS und NUMBERS, und zwar genau
-die Nachricht, die das Bedienteil beim Umschalten schickt.
+Gesendet wird ausschliesslich fuer SWITCHES, SELECTS, NUMBERS und BUTTONS, und zwar
+genau die Nachricht, die das Bedienteil beim Umschalten oder Quittieren schickt.
+Schreibbefehle anderer am Bus (meist das Bedienteil) stehen im Journal ("Bedienteil
+schreibt ..."), damit sich neue Befehle mitlesen lassen.
 
 Gemeldet wird alles aus der Signalliste (bhz2_signale.csv), was auf dem Bus
 tatsaechlich vorkommt - ausser Anlagenteilen, die es hier nicht gibt (EXCLUDE),
@@ -115,6 +117,20 @@ NUMBERS = {
     "heizkreis_1_waermer_kaelter": Number("Heizkreis 1 Wärmer/Kälter einstellen",
                                           0x0B112225, 0x1C112025, -10, 10, 1, "°C"),
 }
+Button = namedtuple("Button", "name set_id state_id node")
+
+# Knoepfe: Schluessel -> (Anzeigename, ID zum Setzen, ID des gemeldeten Werts, Knoten).
+# Quittieren eines Dialogs am Bedienteil, mitgeschnitten am 2.11.2026 (Bit 5 "Zu hohe
+# Brennraumtemperaturen"): 0B18A217#000000, die EOS antwortet 0A18A217, danach meldet
+# 1C18A017 (EOS_COM_MSG_POPUP1, Bitfeld) 0. Ob das Bedienteil auch bei mehreren
+# Dialogen 0 schreibt, ist nicht beobachtet; dann sendet der Knopf nichts.
+BUTTONS = {
+    "meldung_quittieren": Button("Meldung quittieren", 0x0B18A217, 0x1C18A017, node=3),
+}
+
+# Schreibbefehle (0B...) und Antworten (0A...) anderer am Bus ins Journal
+WRITE_PREFIXES = (0x0A, 0x0B)
+
 COMMAND_TOPIC = f"{BASE}/set/"
 
 # (Knoten, Modul, Instanz) -> (Vorsatz fuer den Schluessel, Vorsatz fuer den Namen)
@@ -359,6 +375,19 @@ def switch_discovery_messages(entities):
             "value_template": f"{{{{ value_json.{keys[number.state_id]} }}}}",
         }
         yield f"homeassistant/number/brunner_bhz_can/{key}/config", json.dumps(config)
+    for key, button in BUTTONS.items():
+        if button.state_id not in keys:
+            continue
+        config = {
+            "name": button.name,
+            "unique_id": f"brunner_bhz_can_{key}",
+            "command_topic": COMMAND_TOPIC + key,
+            "payload_press": "PRESS",
+            "availability_topic": AVAIL_TOPIC,
+            "device": DEVICES[button.node][1],
+            "icon": "mdi:check-circle-outline",
+        }
+        yield f"homeassistant/button/brunner_bhz_can/{key}/config", json.dumps(config)
 
 
 def adapter_discovery_messages():
@@ -430,6 +459,8 @@ class Bus:
         except socket.timeout:
             return False
         ident, length, data = FRAME.unpack(frame)
+        if (ident & ID_MASK) >> 24 in WRITE_PREFIXES:
+            log.info("Bedienteil schreibt %08X#%s", ident & ID_MASK, data[:length].hex().upper())
         if length == 4:
             self.seen[ident & ID_MASK] = (data[1:3], time.monotonic())
         return True
@@ -529,6 +560,9 @@ def main():
     def on_message(client, userdata, message):
         key = message.topic[len(COMMAND_TOPIC):]
         wanted = message.payload.decode(errors="replace")
+        if key in BUTTONS and wanted == "PRESS":
+            press(key, BUTTONS[key])
+            return
         if key in SWITCHES and wanted in ("ON", "OFF"):
             target = SWITCHES[key]
             value = target.on if wanted == "ON" else target.off
@@ -550,6 +584,20 @@ def main():
         else:
             log.info("%s -> %s (sende %08X#00%04X)", key, wanted, target.set_id, value & 0xFFFF)
             bus.send(target.set_id, value)
+
+    def press(key, button):
+        current = bus.raw(button.state_id, signed=False)
+        if current is None:
+            log.warning("%s: Zustand unbekannt, sende nichts", key)
+        elif current == 0:
+            log.info("%s: nichts zu quittieren", key)
+        elif current & (current - 1):
+            # mehrere Bits: was das Bedienteil dann schreibt, ist nicht beobachtet
+            log.warning("%s: mehrere Meldungen (%04X), sende nichts - bitte am Bedienteil "
+                        "quittieren und mitlesen", key, current)
+        else:
+            log.info("%s: Meldung %04X (sende %08X#000000)", key, current, button.set_id)
+            bus.send(button.set_id, 0)
 
     client.on_connect = on_connect
     client.on_message = on_message
