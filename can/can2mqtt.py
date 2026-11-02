@@ -128,8 +128,10 @@ BUTTONS = {
     "meldung_quittieren": Button("Meldung quittieren", 0x0B18A217, 0x1C18A017, node=3),
 }
 
-# Schreibbefehle (0B...) und Antworten (0A...) anderer am Bus ins Journal
-WRITE_PREFIXES = (0x0A, 0x0B)
+# Schreibbefehle anderer am Bus ins Journal: 0B... (oder 13...) mit 3 Byte (Wert in Byte 1-2), wie beim
+# Quittieren und an den Schaltern. Lesen (0B... mit 1 Byte), Antworten (0A...) und die
+# 8-Byte-Rahmen der Geraeteerkennung laufen staendig und bleiben draussen.
+WRITE_PREFIXES, WRITE_LENGTH = (0x0B, 0x13), 3
 
 COMMAND_TOPIC = f"{BASE}/set/"
 
@@ -459,7 +461,7 @@ class Bus:
         except socket.timeout:
             return False
         ident, length, data = FRAME.unpack(frame)
-        if (ident & ID_MASK) >> 24 in WRITE_PREFIXES:
+        if (ident & ID_MASK) >> 24 in WRITE_PREFIXES and length == WRITE_LENGTH:
             log.info("Bedienteil schreibt %08X#%s", ident & ID_MASK, data[:length].hex().upper())
         if length == 4:
             self.seen[ident & ID_MASK] = (data[1:3], time.monotonic())

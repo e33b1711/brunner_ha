@@ -111,10 +111,17 @@ Schaltbar sind bisher:
 | Gastherme Ein/Aus | Schalter |
 | Gastherme aktiviert für (Vollladung, WW/Heizung, Frostschutz, Warmwasser, Heizung) | Auswahl |
 | Heizkreis 1 Wärmer/Kälter (−10 … +10 °C) | Zahl |
+| Meldung quittieren (Dialog am Bedienteil, `EOS_COM_MSG_POPUP1`) | Knopf |
 
 Der Dienst sendet dafür genau die Nachricht, die das Bedienteil beim
 Umstellen schickt, und nur, wenn die BHZ gerade einen anderen Zustand meldet.
-Sonst sendet er nichts auf den Bus.
+Sonst sendet er nichts auf den Bus. Der Knopf „Meldung quittieren“ sendet
+`0B18A217#000000` (mitgeschnitten 2.11.2026), aber nur, wenn genau eine Meldung
+ansteht; bei mehreren ist nicht beobachtet, was das Bedienteil schreibt.
+
+Schreibbefehle anderer am Bus (`0B…`/`13…` mit 3 Byte, meist vom Bedienteil)
+schreibt der Dienst ins Journal: `journalctl -u brunner-can | grep "Bedienteil schreibt"`.
+So lassen sich neue Befehle auch ohne `candump` finden.
 
 ### Topics
 
@@ -122,7 +129,7 @@ Sonst sendet er nichts auf den Bus.
 |---|---|
 | `brunner/can/bhz/state`, `brunner/can/eos/state` | alle Werte als JSON |
 | `brunner/can/available` | `online` / `offline` |
-| `brunner/can/set/<name>` | Befehle (`ON`/`OFF`, Auswahltext oder Zahl) |
+| `brunner/can/set/<name>` | Befehle (`ON`/`OFF`, Auswahltext, Zahl oder `PRESS`) |
 | `homeassistant/…/brunner_bhz_can/…/config` | Discovery |
 
 ### An eine andere Anlage anpassen
@@ -134,7 +141,7 @@ Sonst sendet er nichts auf den Bus.
 - **Weitere Einstellungen schaltbar machen:** `candump -L can0` laufen lassen,
   den Wert am Bedienteil umstellen und die Nachricht heraussuchen, die dabei
   geschickt wurde (siehe Protokoll unten). Dann in `SWITCHES`, `SELECTS` oder
-  `NUMBERS` eintragen.
+  `NUMBERS` eintragen, Befehle ohne Zustand (Quittieren) in `BUTTONS`.
 - **BHZ 3 oder andere Parametersätze:** `can/ndef2csv.py` erzeugt die
   Signalliste aus einer `para_export.xml` der Brunner-Firmware. Für die BHZ 3
   gibt es außerdem die Signalliste in
