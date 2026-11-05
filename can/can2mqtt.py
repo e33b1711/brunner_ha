@@ -122,8 +122,9 @@ Button = namedtuple("Button", "name set_id state_id node")
 # Knoepfe: Schluessel -> (Anzeigename, ID zum Setzen, ID des gemeldeten Werts, Knoten).
 # Quittieren eines Dialogs am Bedienteil, mitgeschnitten am 2.11.2026 (Bit 5 "Zu hohe
 # Brennraumtemperaturen"): 0B18A217#000000, die EOS antwortet 0A18A217, danach meldet
-# 1C18A017 (EOS_COM_MSG_POPUP1, Bitfeld) 0. Ob das Bedienteil auch bei mehreren
-# Dialogen 0 schreibt, ist nicht beobachtet; dann sendet der Knopf nichts.
+# 1C18A017 (EOS_COM_MSG_POPUP1, Bitfeld) 0. Am 5.11.2026 bei zwei Dialogen (Bits 2 und 5,
+# 0024) ebenso: ein Druck, das Bedienteil schreibt 1318A217#000000, die EOS antwortet
+# 1218A217, danach 0. Eine 0 quittiert also alle Dialoge auf einmal.
 BUTTONS = {
     "meldung_quittieren": Button("Meldung quittieren", 0x0B18A217, 0x1C18A017, node=3),
 }
@@ -593,10 +594,6 @@ def main():
             log.warning("%s: Zustand unbekannt, sende nichts", key)
         elif current == 0:
             log.info("%s: nichts zu quittieren", key)
-        elif current & (current - 1):
-            # mehrere Bits: was das Bedienteil dann schreibt, ist nicht beobachtet
-            log.warning("%s: mehrere Meldungen (%04X), sende nichts - bitte am Bedienteil "
-                        "quittieren und mitlesen", key, current)
         else:
             log.info("%s: Meldung %04X (sende %08X#000000)", key, current, button.set_id)
             bus.send(button.set_id, 0)
